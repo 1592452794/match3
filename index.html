@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#ff6b9d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="消消乐">
+<title>消消乐</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,"PingFang SC",sans-serif;background:#ffeef5;height:100vh;overflow:hidden;user-select:none}
+  #app{display:flex;flex-direction:column;height:100vh}
+  #topbar{display:flex;justify-content:space-around;padding:10px;background:#ff6b9d;color:#fff;font-size:14px;font-weight:600}
+  #board{flex:1;width:100%;touch-action:none;display:block}
+  #overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:10}
+  #overlay.hidden{display:none}
+  #overlay-content{background:#fff;border-radius:18px;padding:24px 30px;text-align:center;min-width:220px}
+  #overlay-content h2{margin-bottom:12px;color:#ff6b9d;font-size:22px}
+  #overlay-content p{margin-bottom:16px;color:#555;font-size:15px}
+  #overlay-content button{background:#ff6b9d;color:#fff;border:none;border-radius:10px;padding:10px 28px;font-size:16px;font-weight:600}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="level">第 1 关</div>
+    <div id="target">目标：1000</div>
+    <div id="moves">步数：25</div>
+    <div id="score">分数：0</div>
+  </div>
+  <canvas id="board"></canvas>
+</div>
+<div id="overlay" class="hidden">
+  <div id="overlay-content">
+    <h2 id="ov-title">过关！</h2>
+    <p id="ov-desc"></p>
+    <button id="ov-btn">继续</button>
+  </div>
+</div>
+<script>
+// ===== 音效引擎 =====
+let audioCtx = null;
+let audioUnlocked = false;
+
+function unlockAudio(){
+  if(audioUnlocked) return;
+  try{
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioUnlocked = true;
+    startBGM();
+  }catch(e){}
+}
+
+function playTone(freq, duration, type='sine', volume=0.15){
+  if(!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playMatchSound(chain){
+  const base = 520;
+  const freq = base + (chain-1) * 120;
+  playTone(freq, 0.15, 'sine', 0.18);
+  setTimeout(()=> playTone(freq*1.5, 0.12, 'sine', 0.12), 60);
+}
+
+function playSwapSound(){
+  playTone(400, 0.08, 'triangle', 0.1);
+}
+
+function playWinSound(){
+  playTone(523, 0.15, 'sine', 0.2);
+  setTimeout(()=> playTone(659, 0.15, 'sine', 0.2), 130);
+  setTimeout(()=> playTone(784, 0.25, 'sine', 0.2), 260);
+}
+
+function playLoseSound(){
+  playTone(300, 0.2, 'sawtooth', 0.12);
+  setTimeout(()=> playTone(200, 0.3, 'sawtooth', 0.12), 150);
+}
+
+// ===== 背景音乐 =====
+let bgmTimer = null;
+let bgmPlaying = false;
+const BGM_NOTES = [
+  523, 587, 659, 784, 659, 587, 523, 440,
+  494, 523, 587, 659, 587, 523, 494, 440
+];
+
+function startBGM(){
+  if(bgmPlaying || !audioCtx) return;
+  bgmPlaying = true;
+  let i = 0;
+  function tick(){
+    if(!bgmPlaying) return;
+    const note = BGM_NOTES[i % BGM_NOTES.length];
+    playTone(note, 0.35, 'sine', 0.06);
+    playTone(note/2, 0.35, 'triangle', 0.03);
+    i++;
+    bgmTimer = setTimeout(tick, 380);
+  }
+  tick();
+}
+
+function stopBGM(){
+  bgmPlaying = false;
+  if(bgmTimer) clearTimeout(bgmTimer);
+  bgmTimer = null;
+}
+
+// ===== 游戏主体 =====
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const COLS = 8, ROWS = 8;
+const COLORS = ['#ff6b9d','#ffd93d','#6bcB77','#4d96ff','#ff9f45','#c780fa'];
+
+let board = [], cellSize = 0, selected = null;
+let score = 0, moves = 25, level = 1, target = 1000;
+let busy = false;
+
+function getLevelConfig(lv){
+  const t = Math.floor(1000 + (lv-1)*250 + Math.pow(lv,1.6)*30);
+  const m = Math.max(12, 25 - Math.floor((lv-1)/2));
+  return { target: t, moves: m };
+}
+
+function resize(){
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * devicePixelRatio;
+  canvas.height = rect.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  cellSize = Math.min(rect.width/COLS, rect.height/ROWS);
+  draw();
+}
+window.addEventListener('resize', resize);
+
+function randColor(){ return Math.floor(Math.random()*COLORS.length); }
+
+function initBoard(){
+  board = [];
+  for(let r=0;r<ROWS;r++){
+    board[r]=[];
+    for(let c=0;c<COLS;c++) board[r][c]=randColor();
+  }
+  while(findMatches().length) resolveMatches(false);
+}
+
+function findMatches(){
+  const marks = [];
+  for(let r=0;r<ROWS;r++){
+    let run=1;
+    for(let c=1;c<=COLS;c++){
+      if(c<COLS && board[r][c]===board[r][c-1] && board[r][c]!==-1) run++;
+      else {
+        if(run>=3) for(let k=c-run;k<c;k++) marks.push([r,k]);
+        run=1;
+      }
+    }
+  }
+  for(let c=0;c<COLS;c++){
+    let run=1;
+    for(let r=1;r<=ROWS;r++){
+      if(r<ROWS && board[r][c]===board[r-1][c] && board[r][c]!==-1) run++;
+      else {
+        if(run>=3) for(let k=r-run;k<r;k++) marks.push([k,c]);
+        run=1;
+      }
+    }
+  }
+  const set = new Set(marks.map(m=>m[0]+','+m[1]));
+  return [...set].map(s=>s.split(',').map(Number));
+}
+
+function resolveMatches(addScore=true){
+  let total = 0;
+  let chain = 0;
+  while(true){
+    const matches = findMatches();
+    if(!matches.length) break;
+    chain++;
+    playMatchSound(chain);
+    const gain = matches.length * 10 * chain;
+    total += gain;
+    matches.forEach(([r,c])=> board[r][c] = -1);
+    for(let c=0;c<COLS;c++){
+      let write = ROWS-1;
+      for(let r=ROWS-1;r>=0;r--){
+        if(board[r][c]!==-1){
+          board[write][c]=board[r][c];
+          write--;
+        }
+      }
+      for(let r=write;r>=0;r--) board[r][c]=randColor();
+    }
+  }
+  if(addScore && total>0){
+    score += total;
+    updateHUD();
+  }
+  return total;
+}
+
+function updateHUD(){
+  document.getElementById('level').textContent = '第 '+level+' 关';
+  document.getElementById('target').textContent = '目标：'+target;
+  document.getElementById('moves').textContent = '步数：'+moves;
+  document.getElementById('score').textContent = '分数：'+score;
+}
+
+function draw(){
+  const w = canvas.width/devicePixelRatio;
+  const h = canvas.height/devicePixelRatio;
+  ctx.fillStyle='#ffeef5';
+  ctx.fillRect(0,0,w,h);
+  const ox = (w - cellSize*COLS)/2;
+  const oy = (h - cellSize*ROWS)/2;
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const x = ox + c*cellSize;
+      const y = oy + r*cellSize;
+      const pad = cellSize*0.08;
+      if(board[r][c]===-1) continue;
+      ctx.fillStyle = COLORS[board[r][c]];
+      roundRect(x+pad,y+pad,cellSize-pad*2,cellSize-pad*2,cellSize*0.18);
+      ctx.fill();
+      if(selected && selected.r===r && selected.c===c){
+        ctx.strokeStyle='#fff'; ctx.lineWidth=3;
+        roundRect(x+pad,y+pad,cellSize-pad*2,cellSize-pad*2,cellSize*0.18);
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function handleTap(e){
+  if(e.cancelable) e.preventDefault();
+  unlockAudio();
+  if(busy) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const point = e.touches ? e.touches[0] : e;
+  const px = point.clientX - rect.left;
+  const py = point.clientY - rect.top;
+
+  const w = rect.width, h = rect.height;
+  const ox = (w - cellSize*COLS)/2;
+  const oy = (h - cellSize*ROWS)/2;
+  const c = Math.floor((px-ox)/cellSize);
+  const r = Math.floor((py-oy)/cellSize);
+  if(r<0||r>=ROWS||c<0||c>=COLS) return;
+
+  if(!selected){
+    selected = {r,c};
+    draw();
+    return;
+  }
+
+  if(selected.r===r && selected.c===c){
+    selected = null;
+    draw();
+    return;
+  }
+
+  const dr = Math.abs(selected.r-r);
+  const dc = Math.abs(selected.c-c);
+  if(dr+dc===1){
+    const a = selected, b = {r,c};
+    [board[a.r][a.c], board[b.r][b.c]] = [board[b.r][b.c], board[a.r][a.c]];
+    const got = resolveMatches(false);
+    if(got===0){
+      [board[a.r][a.c], board[b.r][b.c]] = [board[b.r][b.c], board[a.r][a.c]];
+    } else {
+      score += got;
+      moves--;
+      playSwapSound();
+      updateHUD();
+      checkEnd();
+    }
+  }
+  selected = null;
+  draw();
+}
+
+canvas.addEventListener('touchstart', handleTap, {passive:false});
+canvas.addEventListener('mousedown', handleTap);
+
+function checkEnd(){
+  if(score>=target){
+    stopBGM();
+    playWinSound();
+    showOverlay('过关！','得分 '+score+'，进入第 '+(level+1)+' 关','继续', ()=>{
+      level++;
+      if(level>30){ showOverlay('通关！','你已完成全部 30 关！','重玩', ()=>{ level=1; startLevel(); }); return; }
+      startLevel();
+      startBGM();
+    });
+  } else if(moves<=0){
+    stopBGM();
+    playLoseSound();
+    showOverlay('步数用完','得分 '+score+'，未达目标 '+target,'重玩本关', ()=>{
+      startLevel();
+      startBGM();
+    });
+  }
+}
+
+function showOverlay(title,desc,btn,cb){
+  document.getElementById('ov-title').textContent = title;
+  document.getElementById('ov-desc').textContent = desc;
+  const b = document.getElementById('ov-btn');
+  b.textContent = btn;
+  b.onclick = ()=>{ hideOverlay(); cb(); };
+  document.getElementById('overlay').classList.remove('hidden');
+}
+function hideOverlay(){ document.getElementById('overlay').classList.add('hidden'); }
+
+function startLevel(){
+  const cfg = getLevelConfig(level);
+  target = cfg.target; moves = cfg.moves; score = 0;
+  selected = null; busy = false;
+  initBoard();
+  updateHUD();
+  resize();
+}
+
+startLevel();
+</script>
+</body>
+</html>
