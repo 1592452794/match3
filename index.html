@@ -3,30 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#ff6b9d">
+<meta name="theme-color" content="#ff9ec7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="消消乐">
 <title>消消乐</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{width:100%;height:100%;overflow:hidden;background:#ffeef5;font-family:-apple-system,"PingFang SC",sans-serif;user-select:none}
-  #topbar{position:fixed;top:0;left:0;right:0;height:44px;display:flex;justify-content:space-around;align-items:center;background:#ff6b9d;color:#fff;font-size:14px;font-weight:600;z-index:5}
-  #board{position:fixed;top:44px;left:0;right:0;bottom:0;display:block}
-  #overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10}
+  html,body{width:100%;height:100%;overflow:hidden;background:#ffe0ee;font-family:-apple-system,"PingFang SC",sans-serif;user-select:none}
+  #topbar{position:fixed;top:0;left:0;right:0;height:60px;background:linear-gradient(135deg,#ff9ec7 0%,#ffb8d5 50%,#cfa8ff 100%);box-shadow:0 4px 18px rgba(255,155,195,0.5);z-index:5;display:flex;flex-direction:column;justify-content:center;padding:6px 14px;color:#fff}
+  #topbar .row1{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;margin-bottom:2px}
+  #topbar .row2{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;opacity:0.95}
+  #topbar .badge{background:rgba(255,255,255,0.28);padding:1px 8px;border-radius:8px;font-size:11px}
+  #board{position:fixed;top:60px;left:0;right:0;bottom:0;display:block}
+  #overlay{position:fixed;inset:0;background:rgba(255,180,210,0.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:10;padding:20px}
   #overlay.hidden{display:none}
-  #overlay-content{background:#fff;border-radius:22px;padding:28px 32px;text-align:center;min-width:260px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
-  #overlay-content h2{margin-bottom:14px;color:#ff6b9d;font-size:22px;line-height:1.4}
-  #overlay-content p{margin-bottom:18px;color:#555;font-size:15px}
-  #overlay-content button{background:#ff6b9d;color:#fff;border:none;border-radius:12px;padding:12px 32px;font-size:16px;font-weight:600}
+  #overlay-content{background:linear-gradient(160deg,#fffafc 0%,#fff0f7 100%);border-radius:26px;padding:30px 26px;text-align:center;max-width:320px;width:100%;box-shadow:0 20px 60px rgba(255,120,170,0.35),0 0 0 2px rgba(255,200,225,0.6) inset}
+  #overlay-content h2{color:#ff6ba5;font-size:19px;line-height:1.5;margin-bottom:14px;white-space:pre-line;font-weight:800}
+  #overlay-content p{color:#a06b85;font-size:14px;line-height:1.6;margin-bottom:20px;white-space:pre-line}
+  #overlay-content button{background:linear-gradient(135deg,#ff8fb8 0%,#cfa8ff 100%);color:#fff;border:none;border-radius:16px;padding:13px 36px;font-size:16px;font-weight:700;box-shadow:0 6px 20px rgba(255,140,180,0.45);letter-spacing:1px}
 </style>
 </head>
 <body>
 <div id="topbar">
-  <div id="level">第 1 关</div>
-  <div id="target">目标：1000</div>
-  <div id="moves">步数：25</div>
-  <div id="score">分数：0</div>
+  <div class="row1">
+    <span id="level">第 1 关</span>
+    <span id="title" class="badge">练气期 · 第 1 层</span>
+  </div>
+  <div class="row2">
+    <span id="time">⏱ 150s</span>
+    <span id="remaining">剩 64</span>
+    <span id="score">分 0</span>
+  </div>
 </div>
 <canvas id="board"></canvas>
 <div id="overlay" class="hidden">
@@ -72,42 +80,50 @@ function playMatchSound(chain){
 }
 function playSwapSound(){ playTone(400, 0.08, 'triangle', 0.1); }
 function playWinSound(){
-  playTone(523, 0.15, 'sine', 0.2);
-  playTone(659, 0.15, 'sine', 0.2, 0.13);
-  playTone(784, 0.25, 'sine', 0.2, 0.26);
-  playTone(1046, 0.35, 'sine', 0.18, 0.42);
+  playTone(659, 0.12, 'sine', 0.2);
+  playTone(784, 0.12, 'sine', 0.2, 0.1);
+  playTone(988, 0.15, 'sine', 0.2, 0.2);
+  playTone(1318, 0.4, 'sine', 0.2, 0.33);
 }
 function playLoseSound(){
-  playTone(300, 0.2, 'sawtooth', 0.12);
-  playTone(200, 0.3, 'sawtooth', 0.12, 0.15);
+  playTone(330, 0.2, 'sawtooth', 0.12);
+  playTone(220, 0.35, 'sawtooth', 0.12, 0.15);
+}
+function playShuffleSound(){
+  playTone(500, 0.1, 'triangle', 0.1);
+  playTone(700, 0.1, 'triangle', 0.1, 0.08);
+  playTone(900, 0.15, 'triangle', 0.1, 0.16);
 }
 
-// ===== 3 段不同的背景音乐 =====
-const BGM_TRACKS = [
-  [523,587,659,784,659,587,523,440,494,523,587,659,587,523,494,440],
-  [440,494,523,587,659,587,523,494,440,392,440,494,523,494,440,392],
-  [659,659,784,659,523,523,587,523,659,784,880,784,659,587,523,587]
+// ===== 7 段不同风格的背景音乐 =====
+const BGM_STYLES = [
+  { notes: [523,587,659,784,880,784,659,587,523,659,784,1046,880,784,659,587], tempo: 380, wave: 'sine' },
+  { notes: [440,523,587,659,587,523,494,440,392,440,494,523,494,440,392,330], tempo: 440, wave: 'triangle' },
+  { notes: [659,784,880,784,659,587,659,784,880,1046,880,784,659,587,523,587], tempo: 300, wave: 'sine' },
+  { notes: [523,659,784,659,523,440,523,659,784,880,784,659,587,523,440,523], tempo: 420, wave: 'triangle' },
+  { notes: [587,698,880,698,587,523,587,698,880,1046,880,698,587,523,466,523], tempo: 400, wave: 'sine' },
+  { notes: [784,880,1046,880,784,698,784,880,1046,1174,1046,880,784,698,659,698], tempo: 360, wave: 'triangle' },
+  { notes: [523,587,698,784,698,587,523,440,523,698,784,880,784,698,587,523], tempo: 340, wave: 'sine' },
 ];
-const BGM_TEMPOS = [380, 440, 320];
 
 let bgmTimer = null;
 let bgmPlaying = false;
-let bgmTrackIndex = 0;
+let bgmStyleIndex = 0;
 
 function startBGM(){
   if(bgmPlaying || !audioCtx) return;
   bgmPlaying = true;
-  bgmTrackIndex = (level - 1) % BGM_TRACKS.length;
-  const notes = BGM_TRACKS[bgmTrackIndex];
-  const tempo = BGM_TEMPOS[bgmTrackIndex];
+  bgmStyleIndex = (level - 1) % BGM_STYLES.length;
+  const style = BGM_STYLES[bgmStyleIndex];
+  const notes = style.notes;
   let i = 0;
   function tick(){
     if(!bgmPlaying) return;
     const note = notes[i % notes.length];
-    playTone(note, tempo/1000 * 0.9, 'sine', 0.06);
-    playTone(note/2, tempo/1000 * 0.9, 'triangle', 0.03);
+    playTone(note, style.tempo/1000 * 0.9, style.wave, 0.06);
+    playTone(note/2, style.tempo/1000 * 0.9, 'triangle', 0.03);
     i++;
-    bgmTimer = setTimeout(tick, tempo);
+    bgmTimer = setTimeout(tick, style.tempo);
   }
   tick();
 }
@@ -118,33 +134,72 @@ function stopBGM(){
   bgmTimer = null;
 }
 
+// ===== 修真境界 =====
+function getCultivationTitle(lv){
+  let stage, layer;
+  if(lv <= 9){ stage = '练气期'; layer = lv; }
+  else if(lv <= 18){ stage = '筑基期'; layer = lv - 9; }
+  else if(lv <= 27){ stage = '金丹期'; layer = lv - 18; }
+  else { stage = '元婴期'; layer = lv - 27; }
+  return { stage, layer };
+}
+
+function getWinReward(lv){
+  if(lv <= 9) return '获得 「灵光护体」 ✨';
+  if(lv <= 18) return '凝聚 「真气根基」 💎';
+  if(lv <= 27) return '引动 「天地异象」 🌟';
+  return '元婴出窍，一步登仙 🌸';
+}
+
+function isBossLevel(lv){
+  return lv === 9 || lv === 18 || lv === 27;
+}
+
 // ===== 游戏主体 =====
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const COLS = 8, ROWS = 8;
-const COLORS = ['#ff6b9d','#ffd93d','#6bcB77','#4d96ff','#ff9f45','#c780fa'];
+const COLORS_NORMAL = ['#ff9ec7','#ffd86b','#8ee8b0','#8ec5ff','#ffb87a','#cfa8ff'];
+const COLORS_BOSS = ['#ff9ec7','#ffd86b','#8ee8b0','#8ec5ff','#ffb87a','#cfa8ff','#ff5c9e'];
+let COLORS = COLORS_NORMAL;
 
 let board = [];
 let cellSize = 0;
 let offsetX = 0, offsetY = 0;
 let selected = null;
-let score = 0, moves = 25, level = 1, target = 1000;
+let score = 0, moves = 24, level = 1;
+let timeLeft = 150;
+let timerId = null;
+let gameOver = false;
 let busy = false;
 let particles = [];
 let fireworksActive = false;
 
+// 背景星星（随机一次，之后固定）
+const stars = [];
+for(let i=0;i<28;i++){
+  stars.push({
+    x: Math.random(),
+    y: Math.random(),
+    r: 0.8 + Math.random() * 1.8,
+    a: 0.25 + Math.random() * 0.4
+  });
+}
+
 function getLevelConfig(lv){
-  const t = Math.floor(1000 + (lv-1)*250 + Math.pow(lv,1.6)*30);
-  const m = Math.max(12, 25 - Math.floor((lv-1)/2));
-  return { target: t, moves: m };
+  const boss = isBossLevel(lv);
+  let timeLimit = Math.max(70, 150 - (lv - 1) * 2);
+  if(boss) timeLimit = Math.floor(timeLimit * 0.82);
+  let movesLimit = Math.max(14, 24 - Math.floor((lv - 1) / 3));
+  if(boss) movesLimit = Math.max(12, movesLimit - 2);
+  return { time: timeLimit, moves: movesLimit, boss };
 }
 
 function easeOutQuad(t){ return 1 - (1-t)*(1-t); }
 function randColor(){ return Math.floor(Math.random()*COLORS.length); }
 
-// === 关键修复：用 JS 精确计算 canvas 尺寸 ===
 function resize(){
-  const topH = 44;
+  const topH = 60;
   const w = window.innerWidth;
   const h = window.innerHeight - topH;
 
@@ -156,7 +211,7 @@ function resize(){
   canvas.height = Math.floor(h * devicePixelRatio);
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
 
-  cellSize = Math.floor(Math.min((w - 8) / COLS, (h - 8) / ROWS));
+  cellSize = Math.floor(Math.min((w - 60) / COLS, (h - 60) / ROWS));
   offsetX = (w - cellSize * COLS) / 2;
   offsetY = (h - cellSize * ROWS) / 2;
 
@@ -165,12 +220,12 @@ function resize(){
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', ()=> setTimeout(resize, 300));
 
-function makeTile(color, row, col, startRow){
+function makeTile(color, row, col){
   return {
     color,
     row,
     col,
-    displayRow: startRow !== undefined ? startRow : row,
+    displayRow: row,
     displayCol: col,
     scale: 1,
     clearProgress: 0
@@ -243,25 +298,155 @@ function applyGravity(){
         writeRow--;
       }
     }
-    for(let r=writeRow;r>=0;r--){
-      const newTile = makeTile(randColor(), r, c);
-      newTile.displayRow = r - (writeRow + 1);
-      board[r][c] = newTile;
-      falls.push({ tile: newTile, from: newTile.displayRow, to: r });
-    }
   }
   return falls;
 }
 
+function countRemaining(){
+  let n = 0;
+  for(let r=0;r<ROWS;r++)
+    for(let c=0;c<COLS;c++)
+      if(board[r][c]) n++;
+  return n;
+}
+
+function hasMoves(){
+  function swapTmp(a, b){
+    const t = board[a[0]][a[1]];
+    board[a[0]][a[1]] = board[b[0]][b[1]];
+    board[b[0]][b[1]] = t;
+  }
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(!board[r][c]) continue;
+      if(c+1<COLS && board[r][c+1]){
+        swapTmp([r,c],[r,c+1]);
+        const ok = findMatches().length > 0;
+        swapTmp([r,c],[r,c+1]);
+        if(ok) return true;
+      }
+      if(r+1<ROWS && board[r+1][c]){
+        swapTmp([r,c],[r+1,c]);
+        const ok = findMatches().length > 0;
+        swapTmp([r,c],[r+1,c]);
+        if(ok) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function shuffleBoard(){
+  const tiles = [];
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(board[r][c]) tiles.push(board[r][c]);
+    }
+  }
+  if(tiles.length < 3) return;
+  let tries = 0;
+  do {
+    const colors = tiles.map(t => t.color);
+    for(let i=colors.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [colors[i],colors[j]] = [colors[j],colors[i]];
+    }
+    tiles.forEach((t,i)=>{ t.color = colors[i]; });
+    tries++;
+  } while(!hasMoves() && tries < 200);
+}
+
+function roundRectPath(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
 function draw(){
   const w = window.innerWidth;
-  const h = window.innerHeight - 44;
-  ctx.fillStyle = '#ffeef5';
+  const h = window.innerHeight - 60;
+
+  // 背景渐变（少女粉）
+  const bgGrad = ctx.createRadialGradient(w/2, h/2, 60, w/2, h/2, Math.max(w,h)*0.85);
+  bgGrad.addColorStop(0, '#fff6fb');
+  bgGrad.addColorStop(0.6, '#ffe4f0');
+  bgGrad.addColorStop(1, '#ffd0e4');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0,0,w,h);
 
+  // 星星
+  ctx.save();
+  for(let i=0;i<stars.length;i++){
+    const s = stars[i];
+    ctx.globalAlpha = s.a;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 棋盘外框（艺术少女风）
+  const boardW = cellSize * COLS;
+  const boardH = cellSize * ROWS;
+  const pad = 14;
+  const bx = offsetX - pad;
+  const by = offsetY - pad;
+  const bw = boardW + pad*2;
+  const bh = boardH + pad*2;
+  const br = 26;
+
+  // 柔和光晕
+  ctx.save();
+  ctx.shadowColor = 'rgba(255, 145, 190, 0.55)';
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  roundRectPath(bx, by, bw, bh, br);
+  ctx.fill();
+  ctx.restore();
+
+  // 内部浅色底
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,245,250,0.95)';
+  roundRectPath(bx+2, by+2, bw-4, bh-4, br-2);
+  ctx.fill();
+  ctx.restore();
+
+  // 渐变边框
+  const borderGrad = ctx.createLinearGradient(bx, by, bx+bw, by+bh);
+  borderGrad.addColorStop(0, '#ff9ec7');
+  borderGrad.addColorStop(0.35, '#ffc4dd');
+  borderGrad.addColorStop(0.7, '#cfa8ff');
+  borderGrad.addColorStop(1, '#ff8fb8');
+  ctx.save();
+  ctx.strokeStyle = borderGrad;
+  ctx.lineWidth = 3;
+  roundRectPath(bx, by, bw, bh, br);
+  ctx.stroke();
+  ctx.restore();
+
+  // 内格底纹
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  ctx.fillStyle = '#ffe0ee';
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const x = offsetX + c*cellSize + cellSize*0.08;
+      const y = offsetY + r*cellSize + cellSize*0.08;
+      roundRectPath(x, y, cellSize*0.84, cellSize*0.84, cellSize*0.2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // 棋盘裁剪区
   ctx.save();
   ctx.beginPath();
-  ctx.rect(offsetX, offsetY, cellSize*COLS, cellSize*ROWS);
+  ctx.rect(offsetX, offsetY, boardW, boardH);
   ctx.clip();
 
   for(let r=0;r<ROWS;r++){
@@ -275,6 +460,7 @@ function draw(){
   }
   ctx.restore();
 
+  // 礼花粒子
   if(fireworksActive && particles.length){
     for(let i=particles.length-1;i>=0;i--){
       const p = particles[i];
@@ -314,37 +500,37 @@ function drawTileShape(cx, cy, size, tile, isSelected){
   ctx.globalAlpha = alpha;
 
   const half = base / 2;
-  const radius = base * 0.18;
+  const radius = base * 0.22;
 
-  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  // 阴影
+  ctx.fillStyle = 'rgba(200,120,160,0.18)';
   roundRectPath(-half + 2, -half + 3, base, base, radius);
   ctx.fill();
 
+  // 主色
   ctx.fillStyle = COLORS[tile.color];
   roundRectPath(-half, -half, base, base, radius);
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  roundRectPath(-half + base*0.12, -half + base*0.10, base*0.5, base*0.28, base*0.14);
+  // 顶部高光（半透明白）
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  roundRectPath(-half + base*0.1, -half + base*0.08, base*0.55, base*0.28, base*0.14);
+  ctx.fill();
+
+  // 底部微光
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  roundRectPath(-half + base*0.2, half - base*0.22, base*0.6, base*0.12, base*0.08);
   ctx.fill();
 
   if(isSelected){
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 3;
+    ctx.shadowColor = 'rgba(255,255,255,0.9)';
+    ctx.shadowBlur = 10;
     roundRectPath(-half, -half, base, base, radius);
     ctx.stroke();
   }
   ctx.restore();
-}
-
-function roundRectPath(x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
 }
 
 function playClearAnimation(matches){
@@ -434,6 +620,7 @@ async function processMatches(){
 }
 
 async function trySwap(aR, aC, bR, bC){
+  if(gameOver) return;
   busy = true;
   const aTile = board[aR][aC];
   const bTile = board[bR][bC];
@@ -469,6 +656,22 @@ async function trySwap(aR, aC, bR, bC){
   moves--;
   updateHUD();
   await processMatches();
+
+  const remaining = countRemaining();
+
+  if(remaining === 0){
+    busy = false;
+    checkEnd();
+    return;
+  }
+
+  if(!hasMoves()){
+    playShuffleSound();
+    shuffleBoard();
+    draw();
+    await new Promise(r => setTimeout(r, 300));
+  }
+
   busy = false;
   draw();
   checkEnd();
@@ -477,11 +680,11 @@ async function trySwap(aR, aC, bR, bC){
 function handleTap(e){
   if(e.cancelable) e.preventDefault();
   unlockAudio();
-  if(busy) return;
+  if(busy || gameOver) return;
 
   const point = e.touches ? e.touches[0] : e;
   const px = point.clientX;
-  const py = point.clientY - 44;
+  const py = point.clientY - 60;
 
   const c = Math.floor((px - offsetX) / cellSize);
   const r = Math.floor((py - offsetY) / cellSize);
@@ -517,40 +720,111 @@ canvas.addEventListener('touchstart', handleTap, {passive:false});
 canvas.addEventListener('mousedown', handleTap);
 
 function updateHUD(){
-  document.getElementById('level').textContent = '第 ' + level + ' 关';
-  document.getElementById('target').textContent = '目标：' + target;
-  document.getElementById('moves').textContent = '步数：' + moves;
-  document.getElementById('score').textContent = '分数：' + score;
+  const { stage, layer } = getCultivationTitle(level);
+  document.getElementById('level').textContent = '第 ' + level + ' 关' + (isBossLevel(level) ? ' 🔥' : '');
+  document.getElementById('title').textContent = stage + ' · 第 ' + layer + ' 层';
+  document.getElementById('time').textContent = '⏱ ' + Math.ceil(timeLeft) + 's';
+  document.getElementById('remaining').textContent = '剩 ' + countRemaining();
+  document.getElementById('score').textContent = '分 ' + score;
+}
+
+// ===== 倒计时 =====
+function startTimer(){
+  stopTimer();
+  timerId = setInterval(()=>{
+    if(gameOver) return;
+    timeLeft -= 0.1;
+    if(timeLeft <= 0){
+      timeLeft = 0;
+      updateHUD();
+      stopTimer();
+      onTimeUp();
+      return;
+    }
+    updateHUD();
+  }, 100);
+}
+
+function stopTimer(){
+  if(timerId) clearInterval(timerId);
+  timerId = null;
+}
+
+function onTimeUp(){
+  if(gameOver) return;
+  gameOver = true;
+  stopBGM();
+  playLoseSound();
+  const remaining = countRemaining();
+  showOverlay(
+    '时间到 ⏰',
+    '还剩 ' + remaining + ' 块没消完\n再来一次吧～',
+    '重玩本关',
+    ()=>{
+      startLevel();
+      startBGM();
+    }
+  );
 }
 
 function checkEnd(){
-  if(score >= target){
+  if(gameOver) return;
+  const remaining = countRemaining();
+
+  if(remaining === 0){
+    gameOver = true;
+    stopTimer();
     stopBGM();
     playWinSound();
     startFireworks();
-    showOverlay('恭喜我家媛儿姐通关！','得分 '+score+'，进入第 '+(level+1)+' 关','继续', ()=>{
-      stopFireworks();
-      level++;
-      if(level > 30){
-        startFireworks();
-        showOverlay('恭喜我家媛儿姐通关！','你已完成全部 30 关！','重玩', ()=>{
+
+    const { stage, layer } = getCultivationTitle(level);
+    const reward = getWinReward(level);
+    const bossText = isBossLevel(level) ? '\n🌟 境界突破！' : '';
+
+    setTimeout(()=>{
+      showOverlay(
+        '恭喜我家媛儿姐\n突破 ' + stage + ' · 第 ' + layer + ' 层！' + bossText,
+        reward + '\n得分 ' + score,
+        '继续修行',
+        ()=>{
           stopFireworks();
-          level = 1;
+          level++;
+          if(level > 30){
+            startFireworks();
+            showOverlay(
+              '恭喜我家媛儿姐\n元婴期 · 大成！',
+              '三十关全部通关\n一步登仙，羽化飞升 🌸',
+              '重新开始',
+              ()=>{
+                stopFireworks();
+                level = 1;
+                startLevel();
+                startBGM();
+              }
+            );
+            return;
+          }
           startLevel();
           startBGM();
-        });
-        return;
-      }
-      startLevel();
-      startBGM();
-    });
+        }
+      );
+    }, 900);
+
   } else if(moves <= 0){
+    gameOver = true;
+    stopTimer();
     stopBGM();
     playLoseSound();
-    showOverlay('步数用完','得分 '+score+'，未达目标 '+target,'重玩本关', ()=>{
-      startLevel();
-      startBGM();
-    });
+    showOverlay(
+      '步数用完',
+      '还剩 ' + remaining + ' 块没消完\n再来一次吧～',
+      '重玩本关',
+      ()=>{
+        startLevel();
+        startBGM();
+      }
+    );
   }
 }
 
@@ -569,50 +843,53 @@ function hideOverlay(){
 
 function startLevel(){
   const cfg = getLevelConfig(level);
-  target = cfg.target;
+  timeLeft = cfg.time;
   moves = cfg.moves;
   score = 0;
   selected = null;
   busy = false;
+  gameOver = false;
+  COLORS = cfg.boss ? COLORS_BOSS : COLORS_NORMAL;
   initBoard();
   updateHUD();
   resize();
+  startTimer();
 }
 
 // ===== 礼花粒子 =====
-const FW_COLORS = ['#ff6b9d','#ffd93d','#6bcB77','#4d96ff','#ff9f45','#c780fa','#ff4d6d','#4dd0e1'];
+const FW_COLORS = ['#ff9ec7','#ffd86b','#8ee8b0','#8ec5ff','#ffb87a','#cfa8ff','#ff6ba5','#fff2a8'];
 
 function startFireworks(){
   particles = [];
   fireworksActive = true;
   let count = 0;
-  const totalShows = 12;
+  const totalShows = 14;
   const interval = setInterval(()=>{
     const w = window.innerWidth;
     const h = window.innerHeight;
     const x = w * (0.15 + Math.random() * 0.7);
-    const y = h * (0.15 + Math.random() * 0.4);
+    const y = h * (0.12 + Math.random() * 0.4);
     spawnFirework(x, y);
     count++;
     if(count >= totalShows) clearInterval(interval);
-  }, 280);
-  spawnFirework(window.innerWidth * 0.5, window.innerHeight * 0.35);
+  }, 260);
+  spawnFirework(window.innerWidth * 0.5, window.innerHeight * 0.32);
   if(!fireworksActive) return;
   requestAnimationFrame(updateFireworks);
 }
 
 function spawnFirework(cx, cy){
-  const count = 40 + Math.floor(Math.random() * 30);
+  const count = 45 + Math.floor(Math.random() * 30);
   for(let i=0;i<count;i++){
     const angle = Math.random() * Math.PI * 2;
-    const speed = 2 + Math.random() * 5;
+    const speed = 2 + Math.random() * 5.5;
     particles.push({
       x: cx,
       y: cy,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - 1,
       life: 1,
-      decay: 0.012 + Math.random() * 0.012,
+      decay: 0.011 + Math.random() * 0.012,
       size: 3 + Math.random() * 4,
       color: FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)],
       gravity: 0.08,
@@ -636,7 +913,6 @@ function stopFireworks(){
   draw();
 }
 
-// 启动
 window.addEventListener('load', ()=>{
   startLevel();
   setTimeout(resize, 100);
