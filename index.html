@@ -68,22 +68,16 @@ function playTone(freq, duration, type='sine', volume=0.15){
 }
 
 function playMatchSound(chain){
-  const base = 520;
-  const freq = base + (chain-1) * 120;
+  const freq = 520 + (chain-1) * 120;
   playTone(freq, 0.15, 'sine', 0.18);
   setTimeout(()=> playTone(freq*1.5, 0.12, 'sine', 0.12), 60);
 }
-
-function playSwapSound(){
-  playTone(400, 0.08, 'triangle', 0.1);
-}
-
+function playSwapSound(){ playTone(400, 0.08, 'triangle', 0.1); }
 function playWinSound(){
   playTone(523, 0.15, 'sine', 0.2);
   setTimeout(()=> playTone(659, 0.15, 'sine', 0.2), 130);
   setTimeout(()=> playTone(784, 0.25, 'sine', 0.2), 260);
 }
-
 function playLoseSound(){
   playTone(300, 0.2, 'sawtooth', 0.12);
   setTimeout(()=> playTone(200, 0.3, 'sawtooth', 0.12), 150);
@@ -92,11 +86,7 @@ function playLoseSound(){
 // ===== 背景音乐 =====
 let bgmTimer = null;
 let bgmPlaying = false;
-const BGM_NOTES = [
-  523, 587, 659, 784, 659, 587, 523, 440,
-  494, 523, 587, 659, 587, 523, 494, 440
-];
-
+const BGM_NOTES = [523,587,659,784,659,587,523,440,494,523,587,659,587,523,494,440];
 function startBGM(){
   if(bgmPlaying || !audioCtx) return;
   bgmPlaying = true;
@@ -111,7 +101,6 @@ function startBGM(){
   }
   tick();
 }
-
 function stopBGM(){
   bgmPlaying = false;
   if(bgmTimer) clearTimeout(bgmTimer);
@@ -124,7 +113,9 @@ const ctx = canvas.getContext('2d');
 const COLS = 8, ROWS = 8;
 const COLORS = ['#ff6b9d','#ffd93d','#6bcB77','#4d96ff','#ff9f45','#c780fa'];
 
-let board = [], cellSize = 0, selected = null;
+let board = [];
+let cellSize = 0;
+let selected = null;
 let score = 0, moves = 25, level = 1, target = 1000;
 let busy = false;
 
@@ -134,115 +125,173 @@ function getLevelConfig(lv){
   return { target: t, moves: m };
 }
 
+function easeOutQuad(t){ return 1 - (1-t)*(1-t); }
+function randColor(){ return Math.floor(Math.random()*COLORS.length); }
+
 function resize(){
   const rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * devicePixelRatio;
   canvas.height = rect.height * devicePixelRatio;
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
-  cellSize = Math.min(rect.width/COLS, rect.height/ROWS);
+  cellSize = Math.min(rect.width / COLS, rect.height / ROWS);
   draw();
 }
 window.addEventListener('resize', resize);
 
-function randColor(){ return Math.floor(Math.random()*COLORS.length); }
+function makeTile(color, row, col, startRow){
+  return {
+    color,
+    row,
+    col,
+    displayRow: startRow !== undefined ? startRow : row,
+    displayCol: col,
+    scale: 1,
+    clearProgress: 0
+  };
+}
 
 function initBoard(){
   board = [];
   for(let r=0;r<ROWS;r++){
-    board[r]=[];
-    for(let c=0;c<COLS;c++) board[r][c]=randColor();
+    board[r] = [];
+    for(let c=0;c<COLS;c++){
+      let color;
+      let tries = 0;
+      do {
+        color = randColor();
+        tries++;
+      } while (tries < 50 && (
+        (c >= 2 && board[r][c-1] && board[r][c-2] &&
+         board[r][c-1].color === color && board[r][c-2].color === color) ||
+        (r >= 2 && board[r-1][c] && board[r-2][c] &&
+         board[r-1][c].color === color && board[r-2][c].color === color)
+      ));
+      board[r][c] = makeTile(color, r, c);
+    }
   }
-  while(findMatches().length) resolveMatches(false);
 }
 
 function findMatches(){
-  const marks = [];
+  const marks = new Set();
   for(let r=0;r<ROWS;r++){
-    let run=1;
+    let run = 1;
     for(let c=1;c<=COLS;c++){
-      if(c<COLS && board[r][c]===board[r][c-1] && board[r][c]!==-1) run++;
+      const curr = c < COLS ? board[r][c] : null;
+      const prev = board[r][c-1];
+      if(curr && prev && curr.color === prev.color) run++;
       else {
-        if(run>=3) for(let k=c-run;k<c;k++) marks.push([r,k]);
-        run=1;
+        if(run >= 3) for(let k=c-run;k<c;k++) marks.add(r+','+k);
+        run = 1;
       }
     }
   }
   for(let c=0;c<COLS;c++){
-    let run=1;
+    let run = 1;
     for(let r=1;r<=ROWS;r++){
-      if(r<ROWS && board[r][c]===board[r-1][c] && board[r][c]!==-1) run++;
+      const curr = r < ROWS ? board[r][c] : null;
+      const prev = board[r-1][c];
+      if(curr && prev && curr.color === prev.color) run++;
       else {
-        if(run>=3) for(let k=r-run;k<r;k++) marks.push([k,c]);
-        run=1;
+        if(run >= 3) for(let k=r-run;k<r;k++) marks.add(k+','+c);
+        run = 1;
       }
     }
   }
-  const set = new Set(marks.map(m=>m[0]+','+m[1]));
-  return [...set].map(s=>s.split(',').map(Number));
+  return [...marks].map(s => s.split(',').map(Number));
 }
 
-function resolveMatches(addScore=true){
-  let total = 0;
-  let chain = 0;
-  while(true){
-    const matches = findMatches();
-    if(!matches.length) break;
-    chain++;
-    playMatchSound(chain);
-    const gain = matches.length * 10 * chain;
-    total += gain;
-    matches.forEach(([r,c])=> board[r][c] = -1);
-    for(let c=0;c<COLS;c++){
-      let write = ROWS-1;
-      for(let r=ROWS-1;r>=0;r--){
-        if(board[r][c]!==-1){
-          board[write][c]=board[r][c];
-          write--;
+function applyGravity(){
+  const falls = [];
+  for(let c=0;c<COLS;c++){
+    let writeRow = ROWS - 1;
+    for(let r=ROWS-1;r>=0;r--){
+      const t = board[r][c];
+      if(t){
+        if(r !== writeRow){
+          board[writeRow][c] = t;
+          board[r][c] = null;
+          t.row = writeRow;
+          falls.push({ tile: t, from: t.displayRow, to: writeRow });
         }
+        writeRow--;
       }
-      for(let r=write;r>=0;r--) board[r][c]=randColor();
+    }
+    for(let r=writeRow;r>=0;r--){
+      const newTile = makeTile(randColor(), r, c);
+      newTile.displayRow = r - (writeRow + 1);
+      board[r][c] = newTile;
+      falls.push({ tile: newTile, from: newTile.displayRow, to: r });
     }
   }
-  if(addScore && total>0){
-    score += total;
-    updateHUD();
-  }
-  return total;
-}
-
-function updateHUD(){
-  document.getElementById('level').textContent = '第 '+level+' 关';
-  document.getElementById('target').textContent = '目标：'+target;
-  document.getElementById('moves').textContent = '步数：'+moves;
-  document.getElementById('score').textContent = '分数：'+score;
+  return falls;
 }
 
 function draw(){
-  const w = canvas.width/devicePixelRatio;
-  const h = canvas.height/devicePixelRatio;
-  ctx.fillStyle='#ffeef5';
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+  ctx.fillStyle = '#ffeef5';
   ctx.fillRect(0,0,w,h);
-  const ox = (w - cellSize*COLS)/2;
-  const oy = (h - cellSize*ROWS)/2;
+
+  const boardW = cellSize * COLS;
+  const boardH = cellSize * ROWS;
+  const ox = (w - boardW) / 2;
+  const oy = (h - boardH) / 2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ox, oy, boardW, boardH);
+  ctx.clip();
+
   for(let r=0;r<ROWS;r++){
     for(let c=0;c<COLS;c++){
-      const x = ox + c*cellSize;
-      const y = oy + r*cellSize;
-      const pad = cellSize*0.08;
-      if(board[r][c]===-1) continue;
-      ctx.fillStyle = COLORS[board[r][c]];
-      roundRect(x+pad,y+pad,cellSize-pad*2,cellSize-pad*2,cellSize*0.18);
-      ctx.fill();
-      if(selected && selected.r===r && selected.c===c){
-        ctx.strokeStyle='#fff'; ctx.lineWidth=3;
-        roundRect(x+pad,y+pad,cellSize-pad*2,cellSize-pad*2,cellSize*0.18);
-        ctx.stroke();
-      }
+      const t = board[r][c];
+      if(!t) continue;
+      const cx = ox + (t.displayCol + 0.5) * cellSize;
+      const cy = oy + (t.displayRow + 0.5) * cellSize;
+      drawTileShape(cx, cy, cellSize, t, selected && selected.tile === t);
     }
   }
+  ctx.restore();
 }
 
-function roundRect(x,y,w,h,r){
+function drawTileShape(cx, cy, size, tile, isSelected){
+  const base = size * 0.84;
+  const clearP = tile.clearProgress || 0;
+  const finalScale = (tile.scale || 1) * (1 - clearP);
+  const alpha = 1 - clearP * 0.9;
+  const rotation = clearP * Math.PI * 0.5;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.scale(Math.max(0.001, finalScale), Math.max(0.001, finalScale));
+  ctx.globalAlpha = alpha;
+
+  const half = base / 2;
+  const radius = base * 0.18;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  roundRectPath(-half + 2, -half + 3, base, base, radius);
+  ctx.fill();
+
+  ctx.fillStyle = COLORS[tile.color];
+  roundRectPath(-half, -half, base, base, radius);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  roundRectPath(-half + base*0.12, -half + base*0.10, base*0.5, base*0.28, base*0.14);
+  ctx.fill();
+
+  if(isSelected){
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    roundRectPath(-half, -half, base, base, radius);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function roundRectPath(x,y,w,h,r){
   ctx.beginPath();
   ctx.moveTo(x+r,y);
   ctx.arcTo(x+w,y,x+w,y+h,r);
@@ -250,6 +299,133 @@ function roundRect(x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r);
   ctx.arcTo(x,y,x+w,y,r);
   ctx.closePath();
+}
+
+function playClearAnimation(matches){
+  return new Promise(resolve => {
+    const duration = 280;
+    const start = performance.now();
+    function step(now){
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeOutQuad(t);
+      matches.forEach(([r,c]) => {
+        const tile = board[r][c];
+        if(tile) tile.clearProgress = e;
+      });
+      draw();
+      if(t < 1) requestAnimationFrame(step);
+      else {
+        matches.forEach(([r,c]) => { board[r][c] = null; });
+        resolve();
+      }
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function playFallAnimation(falls){
+  if(!falls.length) return Promise.resolve();
+  const maxDist = Math.max(...falls.map(f => Math.abs(f.to - f.from)));
+  const duration = 180 + maxDist * 60;
+  return new Promise(resolve => {
+    const start = performance.now();
+    function step(now){
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeOutQuad(t);
+      falls.forEach(f => {
+        f.tile.displayRow = f.from + (f.to - f.from) * e;
+      });
+      draw();
+      if(t < 1) requestAnimationFrame(step);
+      else {
+        falls.forEach(f => { f.tile.displayRow = f.to; });
+        draw();
+        resolve();
+      }
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function animateSwap(tileA, aFrom, aTo, tileB, bFrom, bTo, duration){
+  return new Promise(resolve => {
+    const start = performance.now();
+    function step(now){
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeOutQuad(t);
+      tileA.displayRow = aFrom.row + (aTo.row - aFrom.row) * e;
+      tileA.displayCol = aFrom.col + (aTo.col - aFrom.col) * e;
+      tileB.displayRow = bFrom.row + (bTo.row - bFrom.row) * e;
+      tileB.displayCol = bFrom.col + (bTo.col - bFrom.col) * e;
+      draw();
+      if(t < 1) requestAnimationFrame(step);
+      else {
+        tileA.displayRow = aTo.row; tileA.displayCol = aTo.col;
+        tileB.displayRow = bTo.row; tileB.displayCol = bTo.col;
+        resolve();
+      }
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+async function processMatches(){
+  let chain = 0;
+  while(true){
+    const matches = findMatches();
+    if(!matches.length) break;
+    chain++;
+    playMatchSound(chain);
+
+    const gain = matches.length * 10 * chain;
+    score += gain;
+    updateHUD();
+
+    await playClearAnimation(matches);
+    const falls = applyGravity();
+    await playFallAnimation(falls);
+  }
+}
+
+async function trySwap(aR, aC, bR, bC){
+  busy = true;
+  const aTile = board[aR][aC];
+  const bTile = board[bR][bC];
+
+  const aFrom = { row: aTile.displayRow, col: aTile.displayCol };
+  const bFrom = { row: bTile.displayRow, col: bTile.displayCol };
+  const aTo = { row: bR, col: bC };
+  const bTo = { row: aR, col: aC };
+
+  board[aR][aC] = bTile;
+  board[bR][bC] = aTile;
+  aTile.row = bR; aTile.col = bC;
+  bTile.row = aR; bTile.col = aC;
+
+  await animateSwap(aTile, aFrom, aTo, bTile, bFrom, bTo, 180);
+  playSwapSound();
+
+  const matches = findMatches();
+  if(!matches.length){
+    board[aR][aC] = aTile;
+    board[bR][bC] = bTile;
+    const aBack = { row: aTile.displayRow, col: aTile.displayCol };
+    const bBack = { row: bTile.displayRow, col: bTile.displayCol };
+    await animateSwap(aTile, aBack, { row: aR, col: aC },
+                      bTile, bBack, { row: bR, col: bC }, 180);
+    aTile.row = aR; aTile.col = aC;
+    bTile.row = bR; bTile.col = bC;
+    busy = false;
+    draw();
+    return;
+  }
+
+  moves--;
+  updateHUD();
+  await processMatches();
+  busy = false;
+  draw();
+  checkEnd();
 }
 
 function handleTap(e){
@@ -263,58 +439,65 @@ function handleTap(e){
   const py = point.clientY - rect.top;
 
   const w = rect.width, h = rect.height;
-  const ox = (w - cellSize*COLS)/2;
-  const oy = (h - cellSize*ROWS)/2;
-  const c = Math.floor((px-ox)/cellSize);
-  const r = Math.floor((py-oy)/cellSize);
+  const boardW = cellSize * COLS;
+  const boardH = cellSize * ROWS;
+  const ox = (w - boardW) / 2;
+  const oy = (h - boardH) / 2;
+
+  const c = Math.floor((px - ox) / cellSize);
+  const r = Math.floor((py - oy) / cellSize);
   if(r<0||r>=ROWS||c<0||c>=COLS) return;
+  if(!board[r][c]) return;
 
   if(!selected){
-    selected = {r,c};
+    selected = { tile: board[r][c], r, c };
     draw();
     return;
   }
 
-  if(selected.r===r && selected.c===c){
+  if(selected.r === r && selected.c === c){
     selected = null;
     draw();
     return;
   }
 
-  const dr = Math.abs(selected.r-r);
-  const dc = Math.abs(selected.c-c);
-  if(dr+dc===1){
-    const a = selected, b = {r,c};
-    [board[a.r][a.c], board[b.r][b.c]] = [board[b.r][b.c], board[a.r][a.c]];
-    const got = resolveMatches(false);
-    if(got===0){
-      [board[a.r][a.c], board[b.r][b.c]] = [board[b.r][b.c], board[a.r][a.c]];
-    } else {
-      score += got;
-      moves--;
-      playSwapSound();
-      updateHUD();
-      checkEnd();
-    }
-  }
+  const dr = Math.abs(selected.r - r);
+  const dc = Math.abs(selected.c - c);
+  const prevR = selected.r, prevC = selected.c;
   selected = null;
-  draw();
+
+  if(dr + dc === 1){
+    trySwap(prevR, prevC, r, c);
+  } else {
+    selected = { tile: board[r][c], r, c };
+    draw();
+  }
 }
 
 canvas.addEventListener('touchstart', handleTap, {passive:false});
 canvas.addEventListener('mousedown', handleTap);
 
+function updateHUD(){
+  document.getElementById('level').textContent = '第 ' + level + ' 关';
+  document.getElementById('target').textContent = '目标：' + target;
+  document.getElementById('moves').textContent = '步数：' + moves;
+  document.getElementById('score').textContent = '分数：' + score;
+}
+
 function checkEnd(){
-  if(score>=target){
+  if(score >= target){
     stopBGM();
     playWinSound();
     showOverlay('过关！','得分 '+score+'，进入第 '+(level+1)+' 关','继续', ()=>{
       level++;
-      if(level>30){ showOverlay('通关！','你已完成全部 30 关！','重玩', ()=>{ level=1; startLevel(); }); return; }
+      if(level > 30){
+        showOverlay('通关！','你已完成全部 30 关！','重玩', ()=>{ level=1; startLevel(); startBGM(); });
+        return;
+      }
       startLevel();
       startBGM();
     });
-  } else if(moves<=0){
+  } else if(moves <= 0){
     stopBGM();
     playLoseSound();
     showOverlay('步数用完','得分 '+score+'，未达目标 '+target,'重玩本关', ()=>{
@@ -324,7 +507,7 @@ function checkEnd(){
   }
 }
 
-function showOverlay(title,desc,btn,cb){
+function showOverlay(title, desc, btn, cb){
   document.getElementById('ov-title').textContent = title;
   document.getElementById('ov-desc').textContent = desc;
   const b = document.getElementById('ov-btn');
@@ -336,8 +519,11 @@ function hideOverlay(){ document.getElementById('overlay').classList.add('hidden
 
 function startLevel(){
   const cfg = getLevelConfig(level);
-  target = cfg.target; moves = cfg.moves; score = 0;
-  selected = null; busy = false;
+  target = cfg.target;
+  moves = cfg.moves;
+  score = 0;
+  selected = null;
+  busy = false;
   initBoard();
   updateHUD();
   resize();
